@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>一週五店面排班表（會記住店名＋員工）</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      background: #ffffff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .panel h2 {
+      font-size: 16px;
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    label {
+      font-size: 13px;
+    }
+
+    input[type="text"] {
+      padding: 4px 6px;
+      font-size: 13px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    button:hover {
+      background: #eee;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    th {
+      background: #f0f0f0;
+      text-align: center;
+    }
+
+    .day-cell {
+      font-weight: 600;
+      background: #fafafa;
+      width: 80px;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .cell-employees {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      align-items: flex-start;
+    }
+
+    .emp-check {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .small-note {
+      font-size: 12px;
+      color: #777;
+      margin-top: 4px;
+    }
+
+    .emp-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .emp-row label {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <h1>森禾田一週店面排班表</h1>
+
+  <!-- 店面設定 -->
+  <div class="panel">
+    <h2>店面設定</h2>
+    <div class="row">
+      <label>店 1 名稱：</label>
+      <input type="text" id="store1Input" />
+      <label>店 2 名稱：</label>
+      <input type="text" id="store2Input" />
+      <label>店 3 名稱：</label>
+      <input type="text" id="store3Input" />
+    </div>
+    <div class="row">
+      <label>店 4 名稱：</label>
+      <input type="text" id="store4Input" />
+      <label>店 5 名稱：</label>
+      <input type="text" id="store5Input" />
+      <button id="updateStoresBtn">更新店名</button>
+    </div>
+    <div class="small-note">
+      修改文字後按「更新店名」，上面表格的標題會一起更新。<br>
+      店名會記在這台裝置的瀏覽器裡，重整也不會消失。
+    </div>
+  </div>
+
+  <!-- 員工設定 -->
+  <div class="panel">
+    <h2>員工設定</h2>
+    <div class="row">
+      <label>新增員工姓名：</label>
+      <input type="text" id="newEmployeeInput" placeholder="例如：小明" />
+      <button id="addEmployeeBtn">新增員工</button>
+      <button id="clearBtn">清空所有排班</button>
+    </div>
+    <div class="small-note">
+      新增的員工會自動出現在一週所有店面的勾選列表裡。<br>
+      下方可以修改任何員工名稱（舊的、新增的都可以），名稱會被記住。
+    </div>
+    <hr>
+    <div id="employeeList"></div>
+  </div>
+
+  <!-- 排班表 -->
+  <table id="scheduleTable"></table>
+
+  <script>
+    // ===== LocalStorage key 設定 =====
+    const LS_KEY_STORES = "schedule_stores_v1_5stores";
+    const LS_KEY_EMPLOYEES = "schedule_employees_v1";
+
+    // ===== 預設店名（如果 localStorage 沒有） =====
+    const defaultStores = ["A店", "B店", "C店", "D店", "E店"];
+
+    // 從 localStorage 載入店名
+    function loadStores() {
+      const text = localStorage.getItem(LS_KEY_STORES);
+      if (!text) return [...defaultStores];
+      try {
+        const arr = JSON.parse(text);
+        if (Array.isArray(arr) && arr.length === 5) {
+          return arr;
+        }
+        return [...defaultStores];
+      } catch (e) {
+        return [...defaultStores];
+      }
+    }
+
+    // 寫入店名到 localStorage
+    function saveStores() {
+      localStorage.setItem(LS_KEY_STORES, JSON.stringify(stores));
+    }
+
+    // ===== 預設員工（如果 localStorage 沒有） =====
+    const defaultEmployees = ["小明", "小美", "阿強"];
+
+    // 從 localStorage 載入員工
+    function loadEmployees() {
+      const text = localStorage.getItem(LS_KEY_EMPLOYEES);
+      if (!text) return [...defaultEmployees];
+      try {
+        const arr = JSON.parse(text);
+        if (Array.isArray(arr) && arr.length > 0) {
+          return arr;
+        }
+        return [...defaultEmployees];
+      } catch (e) {
+        return [...defaultEmployees];
+      }
+    }
+
+    // 寫入員工到 localStorage
+    function saveEmployees() {
+      localStorage.setItem(LS_KEY_EMPLOYEES, JSON.stringify(employees));
+    }
+
+    // ===== 變數：實際使用的店名 & 員工名單 =====
+    let stores = loadStores();        // 5 間店
+    let employees = loadEmployees();  // 員工名單
+
+    // 一週七天
+    const days = [
+      "星期一",
+      "星期二",
+      "星期三",
+      "星期四",
+      "星期五",
+      "星期六",
+      "星期日"
+    ];
+
+    const storeInputs = [
+      document.getElementById("store1Input"),
+      document.getElementById("store2Input"),
+      document.getElementById("store3Input"),
+      document.getElementById("store4Input"),
+      document.getElementById("store5Input")
+    ];
+
+    const scheduleTable = document.getElementById("scheduleTable");
+    const employeeListDiv = document.getElementById("employeeList");
+
+    // 把目前 store 名放到輸入框
+    function initStoreInputs() {
+      stores.forEach((name, idx) => {
+        if (storeInputs[idx]) {
+          storeInputs[idx].value = name;
+        }
+      });
+    }
+
+    // 建立表格
+    function buildTable() {
+      scheduleTable.innerHTML = "";
+
+      // 表頭
+      const headerRow = document.createElement("tr");
+      const emptyTh = document.createElement("th");
+      emptyTh.textContent = "日期 / 店面";
+      headerRow.appendChild(emptyTh);
+
+      stores.forEach((storeName, storeIndex) => {
+        const th = document.createElement("th");
+        th.textContent = storeName;
+        th.dataset.storeIndex = storeIndex;
+        headerRow.appendChild(th);
+      });
+
+      scheduleTable.appendChild(headerRow);
+
+      // 每一天一列
+      days.forEach((day, dayIndex) => {
+        const row = document.createElement("tr");
+
+        const dayCell = document.createElement("td");
+        dayCell.textContent = day;
+        dayCell.className = "day-cell";
+        row.appendChild(dayCell);
+
+        // 每一個店面一個 cell，裡面放員工勾選
+        stores.forEach((_, storeIndex) => {
+          const cell = document.createElement("td");
+          const wrapper = document.createElement("div");
+          wrapper.className = "cell-employees";
+
+          // 為這個格子建立所有員工的 checkbox
+          employees.forEach((empName, empIndex) => {
+            const empDiv = document.createElement("div");
+            empDiv.className = "emp-check";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.dataset.dayIndex = dayIndex;
+            checkbox.dataset.storeIndex = storeIndex;
+            checkbox.dataset.empIndex = empIndex;
+
+            const label = document.createElement("label");
+            label.textContent = empName;
+            label.dataset.empIndex = empIndex; // 讓之後改名可以找到對應 label
+
+            empDiv.appendChild(checkbox);
+            empDiv.appendChild(label);
+
+            wrapper.appendChild(empDiv);
+          });
+
+          cell.appendChild(wrapper);
+          row.appendChild(cell);
+        });
+
+        scheduleTable.appendChild(row);
+      });
+    }
+
+    // 重新建表（當員工名單改變時）
+    function refreshEmployeeCheckboxes() {
+      buildTable();
+    }
+
+    // 顯示員工清單（可以修改名稱）
+    function renderEmployeeList() {
+      employeeListDiv.innerHTML = "";
+      employees.forEach((name, index) => {
+        const row = document.createElement("div");
+        row.className = "emp-row";
+
+        const label = document.createElement("label");
+        label.textContent = `員工 ${index + 1}:`;
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = name;
+        input.size = 10;
+        input.dataset.empIndex = index;
+
+        const btn = document.createElement("button");
+        btn.textContent = "更新名稱";
+        btn.dataset.empIndex = index;
+
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.dataset.empIndex);
+          const newName = input.value.trim();
+          if (!newName) {
+            alert("名稱不能是空的");
+            return;
+          }
+          employees[idx] = newName;
+          saveEmployees();           // 記住新的員工名稱
+          updateEmployeeLabels(idx, newName);
+        });
+
+        row.appendChild(label);
+        row.appendChild(input);
+        row.appendChild(btn);
+
+        employeeListDiv.appendChild(row);
+      });
+    }
+
+    // 把表格裡所有該員工的 label 改成新名字
+    function updateEmployeeLabels(empIndex, newName) {
+      const labels = scheduleTable.querySelectorAll(
+        "label[data-emp-index='" + empIndex + "']"
+      );
+      labels.forEach(label => {
+        label.textContent = newName;
+      });
+    }
+
+    // ===== 事件：更新店名 =====
+    document.getElementById("updateStoresBtn").addEventListener("click", () => {
+      stores = storeInputs.map(input => input.value.trim() || "未命名店");
+      saveStores();   // 儲存到 localStorage
+      buildTable();   // 重畫表格
+    });
+
+    // ===== 事件：新增員工 =====
+    document.getElementById("addEmployeeBtn").addEventListener("click", () => {
+      const input = document.getElementById("newEmployeeInput");
+      const name = input.value.trim();
+      if (!name) {
+        alert("請先輸入員工姓名");
+        return;
+      }
+      if (employees.includes(name)) {
+        alert("這個員工已經在名單裡了");
+        return;
+      }
+      employees.push(name);
+      saveEmployees();           // 把新名單存起來
+      input.value = "";
+      refreshEmployeeCheckboxes(); // 讓新員工出現在所有格子
+      renderEmployeeList();        // 也出現在可修改名單區
+    });
+
+    // ===== 事件：清空所有排班 =====
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      const checkboxes = scheduleTable.querySelectorAll("input[type='checkbox']");
+      checkboxes.forEach(cb => {
+        cb.checked = false;
+      });
+    });
+
+    // 初始化
+    initStoreInputs();
+    buildTable();
+    renderEmployeeList();
+  </script>
+</body>
+</html>
